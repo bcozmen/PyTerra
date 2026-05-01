@@ -1,30 +1,48 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import distance_transform_edt, binary_dilation, gaussian_filter
 import heapq
-from scipy.ndimage import distance_transform_edt
-class World():
+
+class WorldMap():
     def __init__(self, size = 2**9+1, sea_level  = 0.18, 
-                    num_rivers = 5, 
-                    seed = 43, diamond_square_parameters = {}):
-        if seed is not None:
-                np.random.seed(seed)
+                    num_rivers = 5, diamond_square_parameters = {}):
+        self.height_map = None
+        self.sea_mask = None
+        self.river_mask = None
+        self.fertility_map = None
+        self.forest_map = None
 
         self.size = size
         self.num_rivers = num_rivers
         self.sea_level = sea_level
         self.diamond_square_parameters = diamond_square_parameters
 
-        self.generate_heightmap()
+        self.generate_height_map()
         self.generate_sea_mask()
 
 
         self.generate_rivers()
         self.generate_fertility_map()
         self.generate_forest_map()
+        self.generate_city_map()
+
+        self.maps = {
+            "height": self.height_map,
+            "sea": self.sea_mask,
+            "river": self.river_mask,
+            "fertility": self.fertility_map,
+            "forest": self.forest_map,
+            "city": self.city_map
+        }
+
+    def generate_city_map(self):
+        W,H = self.height_map.shape
+
+        #city id, owner id, building type
+        self.city_map = np.zeros((W, H, 3), dtype=np.int32)  # 0 means no city, positive integers are city IDs
 
     def plot_2d(self, map_type = "terrain"):
-        h = self.heightmap
+        h = self.height_map
         sea = self.sea_mask | self.river_mask
 
         plt.figure(figsize=(10, 10))
@@ -41,17 +59,22 @@ class World():
         overlay[..., 3] = sea * 0.5
         plt.imshow(overlay)
 
-        #colorbar
+        #plot cities as red dots using imshow
+        city_overlay = np.zeros((*h.shape, 4))
+        city_overlay[..., 0] = self.city_map[..., 0] > 0
+        city_overlay[..., 3] = city_overlay[..., 0] * 0.8
+        plt.imshow(city_overlay)
         
         plt.title(f"Final {map_type.capitalize()}: Sea Level = {self.sea_level}")
         plt.show()
 
     
-    def generate_heightmap(self):
+    def generate_height_map(self):
         scale = self.diamond_square_parameters.get('scale', 1.0)
         roughness = self.diamond_square_parameters.get('roughness', 0.45)
         assert (self.size - 1) & (self.size - 2) == 0, "size must be 2^n + 1"
 
+        #initialize corners with random values
         grid = np.zeros((self.size, self.size), dtype=np.float32)
 
         grid[0, 0] = np.random.rand() * scale
@@ -61,7 +84,7 @@ class World():
 
         step = self.size - 1
         current = scale
-
+        # 
         while step > 1:
             half = step // 2
 
@@ -90,12 +113,16 @@ class World():
             current *= roughness
 
         grid = gaussian_filter(grid, sigma=1.0)
-        self.heightmap = grid
+        self.height_map = grid
+
+    def generate_sea_mask(self):
+        self.sea_mask = self.height_map < self.sea_level
+        self.river_mask = np.zeros_like(self.sea_mask, dtype=bool)
+        self.river_count = np.zeros_like(self.sea_mask, dtype=np.int32)
 
     def generate_fertility_map(self):
         #fertility is higher near rivers and low to mid altitudes
-
-        river_effect = np.zeros_like(self.heightmap, dtype=np.float32)
+        river_effect = np.zeros_like(self.height_map, dtype=np.float32)
 
         #Give a boost to fertility based on proximity to rivers
         
@@ -106,7 +133,7 @@ class World():
         river_effect = (river_effect - river_effect.min()) / (river_effect.max() - river_effect.min() + 1e-5)
 
         # Apply altitude effect: boost fertility at low to mid altitudes, reduce at high altitudes
-        altitude = np.clip(self.heightmap - self.sea_level, 0, 1)
+        altitude = np.clip(self.height_map - self.sea_level, 0, 1)
         altitude_effect = np.exp(-((altitude) ** 2) / (2 * 0.25 ** 2))  # Gaussian centered at 0.5
         river_effect *= altitude_effect
 
@@ -118,36 +145,33 @@ class World():
         
     def generate_forest_map(self):
         #forest is more exponentially more likely in higer altitudes
-        height = np.clip(self.heightmap - self.sea_level, 0, 1)
+        height = np.clip(self.height_map - self.sea_level, 0, 1)
         altitude_effect = np.exp(height)  # exponential boost for higher altitudes
         normalized_altitude_effect = (altitude_effect - altitude_effect.min()) / (altitude_effect.max() - altitude_effect.min() + 1e-5)
 
         self.forest_map = normalized_altitude_effect + normalized_altitude_effect * self.fertility_map
         self.forest_map = (self.forest_map - self.forest_map.min()) / (self.forest_map.max() - self.forest_map.min() + 1e-5)
-    def generate_sea_mask(self):
-        self.sea_mask = self.heightmap < self.sea_level
-        self.river_mask = np.zeros_like(self.sea_mask, dtype=bool)
-        self.river_count = np.zeros_like(self.sea_mask, dtype=np.int32)
+
 
     def generate_rivers(self):
         #get the %10 of the highest points that are not sea as river sources and randomly pick num_rivers of them as river sources
-        h, w = self.heightmap.shape
+        h, w = self.height_map.shape
         #choose from top 50 and probabilistically sample according to height (higher altitudes more likely)
         land_mask = ~self.sea_mask
-        land_heights = self.heightmap[land_mask]
+        land_heights = self.height_map[land_mask]
         threshold = np.percentile(land_heights, 93)
-        potential_sources = np.argwhere((self.heightmap >= threshold) & land_mask)
+        potential_sources = np.argwhere((self.height_map >= threshold) & land_mask)
         np.random.shuffle(potential_sources)
         sources = potential_sources[:self.num_rivers]
         # river_count tracks how many rivers pass through each cell
         self.river_count = np.zeros((h, w), dtype=np.int32)
 
         for start_x, start_y in sources:
-            self.generate_river(start_x, start_y)
+            self.trace_river_to_the_sea(start_x, start_y)
 
         # Widen rivers proportionally: cells where N rivers merge are dilated N times,
         # so downstream merged rivers are progressively wider than their tributaries.
-        from scipy.ndimage import binary_dilation
+        
         max_count = int(self.river_count.max())
         dilated = np.zeros((h, w), dtype=bool)
         for level in range(1, max_count + 1):
@@ -156,8 +180,8 @@ class World():
             dilated |= binary_dilation(mask, iterations=level)
 
         self.river_mask = dilated
-    def generate_river(self, start_x, start_y):
-        h, w = self.heightmap.shape
+    def trace_river_to_the_sea(self, start_x, start_y):
+        h, w = self.height_map.shape
 
         # cost map
         cost = np.full((h, w), np.inf)
@@ -181,7 +205,7 @@ class World():
             if c > cost[x, y]:
                 continue
 
-            current_h = self.heightmap[x, y]
+            current_h = self.height_map[x, y]
 
             for dy in (-1, 0, 1):
                 for dx in (-1, 0, 1):
@@ -193,7 +217,7 @@ class World():
                     if not (0 <= nx < h and 0 <= ny < w):
                         continue
 
-                    nh = self.heightmap[nx, ny]
+                    nh = self.height_map[nx, ny]
 
                     # uphill penalty (key idea)
                     step_cost = max(0, nh - current_h)
@@ -224,8 +248,3 @@ class World():
         self.river_mask = self.river_count > 0
 
 
-world = World(size=2**8+1, num_rivers=8, sea_level=0.18, seed=43)
-
-world.plot_2d()
-world.plot_2d("fertility")
-world.plot_2d("forest")
