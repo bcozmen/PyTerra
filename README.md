@@ -17,7 +17,7 @@ The following images demonstrate the generator's capability to produce terrains 
 | 3 - Region | 20 km | ![Level 3](assets/2.jpg) |
 | 4 - Area | 10 km | ![Level 4](assets/3.jpg) |
 | 5 - Valley | 5 km | ![Level 5](assets/4.jpg) |
-| 6 - Hill | 5 km | ![Level 5](assets/5.jpg) |
+| 6 - Hill | 1 km | ![Level 5](assets/5.jpg) |
 
 ---
 
