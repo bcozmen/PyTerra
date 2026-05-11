@@ -8,7 +8,6 @@ This project focuses on generating realistic terrains with infinite resolution u
 
 ## Gallery: Zooming In
 
-The following images demonstrate the generator's capability to produce terrains at varying levels of detail. Each image represents the same world, progressively zoomed in:
 
 | Level | Resolution | Asset |
 |-------|----------------|-------|
@@ -38,7 +37,7 @@ The following images demonstrate the generator's capability to produce terrains 
 ```bash
 git clone https://github.com/your-username/infinite-terrain-generator.git
 cd infinite-terrain-generator
-pip install numpy scipy matplotlib numba
+pip install -r requirements.txt
 ```
 
 ### Usage
