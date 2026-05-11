@@ -43,78 +43,20 @@ from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from .helper import diamond_square_numba
+from .helper import diamond_square_numba, fft_lowpass
 from .noise import fbm, domain_warp, ridge_fbm, domain_warp_aniso
 from .erosion import hydraulic_erosion, thermal_erosion
-import time
+from .plotter import hillshade, plot2D, plot3D, plot
 
+from .params import (
+    world_params,
+    base_params,
+    erosion_params,
+    continent_params,
+    base_noise_params,
+    micro_noise_params,
+)
 
-# ---------------------------------------------------------------------------
-# Default parameter bundles
-# ---------------------------------------------------------------------------
-
-#: Low-resolution base grid (diamond-square).  size must be 2^n + 1.
-base_params = {
-    'size': 2**10 + 1,
-    'scale': 1.0,
-    'roughness': 0.55,
-}
-
-#: Controls every noise layer and the erosion passes.
-erosion_params = {
-    'thermal_iterations': 5,
-    'talus': 0.025,
-    'hydraulic_iterations': 80,
-    'erosion_rate': 0.03,
-    'deposition_rate': 0.03,
-    'evaporation': 0.02,
-}
-
-
-macro_params = {
-    'octaves' : 2,
-    'persistence': 0.5,
-    'lacunarity': 2.0,
-    'base_freq': 0.3,          # very low -> large continental blobs
-    'weight': 0.45,            # exp-scale strength; higher = more dramatic amplification
-    'warp_x': 0.0,             # no warp on macro layer -- pure continental blobs
-    'warp_y': 0.0,
-    'ridge_strength': 0.0,     # no ridges on macro layer -- pure FBM shaping
-}
-
-mid_params = {
-    'octaves': 4,
-    'persistence': 0.5,
-    'lacunarity': 2.1,
-    'base_freq': 2.0,
-    'weight': 0.50,            # exp-scale strength for mountain chain amplification
-    'warp_x': 2.0,             # anisotropic warp -- elongated ridges
-    'warp_y': 1.5,
-    'ridge_strength': 1.2,     # multiplicative ridge boost strength (0 = off)
-}
-
-micro_params = {
-    'octaves': 8,
-    'persistence': 0.5,
-    'lacunarity': 2.0,
-    'base_freq': 100.0,        # high freq -> rock / surface variation
-    'amplitude': 0.08,         # kept small so base structure dominates
-    'warp_x': 0.5,             # subtle domain warp for natural variation
-    'warp_y': 0.5,
-    'ridge_strength': 0.6,     # multiplicative ridge character in micro layer
-}
-
-#: Parameters for the continentality gradient layer.
-continent_params = {
-    'octaves': 3,
-    'persistence': 0.5,
-    'lacunarity': 2.0,
-    'base_freq': 0.2,      # very low -> broad ocean/continent separation
-    'land_fraction': 0.4,  # bias: fraction of world that is above water (0-1)
-}
-
-base_noise_params = [macro_params, mid_params]
-micro_noise_params = [micro_params]
 # ---------------------------------------------------------------------------
 # LOD class
 # ---------------------------------------------------------------------------
@@ -136,6 +78,7 @@ class Terrain:
 
     def __init__(
         self,
+        world_params: dict = world_params,
         base_params: dict = base_params,
         erosion_params: dict = erosion_params,
         macro_params: list = base_noise_params,
@@ -144,6 +87,7 @@ class Terrain:
         seed: int = 42,
         erode: bool = True,
     ):
+        self.world_params = world_params
         self.base_params = base_params
         self.erosion_params = erosion_params
         self.macro_params = macro_params
@@ -296,7 +240,18 @@ class Terrain:
         erosion_mask = np.exp(-slope * 5.0)
         combined *= erosion_mask
 
-        # ---- 7. Percentile normalisation (Item 5) ----
+
+        # ---- 7. FFT low-pass: remove spike artefacts at base-map resolution ----
+        # Cutoff and rolloff come from world_params so the same physical wavelength
+        # threshold applies whenever the base map is smoothed.
+        wp = self.world_params
+        combined = fft_lowpass(
+            combined,
+            cutoff=wp['fft_cutoff'],
+            rolloff=wp['fft_rolloff'],
+        )
+
+        # ---- 8. Percentile normalisation (Item 5) ----
         # Preserves extreme cliffs; avoids washed-out continents.
         lo, hi = np.percentile(combined, [2, 98])
         combined = np.clip((combined - lo) / (hi - lo + 1e-8), 0.0, 1.0)
@@ -331,120 +286,73 @@ class Terrain:
         points = np.stack([xv.ravel(), yv.ravel()], axis=-1)
         heights = self._base_interp(points).reshape(shape)
 
+        # ---- Slope-based erosion feedback at fine scale (Item 4) ----
+        # Use dimensionless (grid-unit) gradient, consistent with _build_base.
+        # Physical cell sizes are only needed for the slope histogram / hillshade,
+        # not for this multiplicative mask whose tuning constant (5.0) was chosen
+        # in grid-unit space.
+        grad_x, grad_y = np.gradient(heights)
+        slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
+        erosion_mask = np.exp(-slope * 5.0)
+        heights *= erosion_mask
+
         # ---- Micro detail: elevation-biased deposition (Items 2 & 4) ----
         # World-space coords ensure seamless stitching across tile boundaries.
         # High-altitude regions (snow line / erosion) receive less micro detail;
         # mid-range terrain receives the most surface variation.
         for param in self.micro_params:
             noise = self._get_noise(xv, yv, param)
-            noise = gaussian_filter(noise, sigma=0.1)
-
-            elevation_mask = np.clip(heights, 0.0, 1.0)
-            # Exponent > 1 suppresses detail more aggressively near peaks
             micro_strength = param['amplitude']
             heights = heights + micro_strength * noise
 
-        # ---- Slope-based erosion feedback at fine scale (Item 4) ----
-        grad_x, grad_y = np.gradient(heights)
-        slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        erosion_mask = np.exp(-slope * 5.0)
-        heights *= erosion_mask
+        # ---- Scale-consistent FFT smoothing ----
+        # Adaptive cutoff so the same *physical* wavelength threshold is enforced
+        # regardless of zoom level or output resolution.
+        #
+        #   base_cell  = world-space size of one base-map pixel (m)
+        #   query_cell = world-space size of one output pixel (m)
+        #   cutoff     = fft_cutoff * base_cell / query_cell
+        #
+        # Zoomed in  (small query_cell): cutoff rises → less smoothing → fine
+        #            detail visible at appropriate scale.
+        # Zoomed out (large query_cell): cutoff falls → more smoothing → coarse
+        #            features only, no Nyquist artefacts from the base interpolator.
+        # At base resolution (query_cell == base_cell): cutoff == fft_cutoff.
+        wp = self.world_params
+        cell_size_x, cell_size_y = self.get_cell_size(lim, shape)
+        base_cell = wp['max_size'] / self.base_params['size']
+        adaptive_cutoff = float(np.clip(
+            wp['fft_cutoff'] * base_cell / cell_size_x,
+            0.05, 0.45,
+        ))
+        heights = fft_lowpass(heights, cutoff=adaptive_cutoff, rolloff=wp['fft_rolloff'])
 
-        return np.clip(heights, 0.0, 1.0)
+        return heights
 
     # ------------------------------------------------------------------
     # Visualisation helpers
     # ------------------------------------------------------------------
-    def plot(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(1024, 1024), azim=45, elev=30, save_path=None):
-        """Convenience method to plot the height map."""
-        #2d hillshaded map with matplotlib, and 3D surface plot side by side
-        fig = plt.figure(figsize=(16, 12))
-        #make the 2d map smaller than the 3d plot, so the 3d plot is more visible
-        gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.5])
-        ax1 = fig.add_subplot(gs[0, 0])
-        self.plot_map(ax=ax1, lim=lim, shape=shape, azim=azim, elev=elev)
-        ax2 = fig.add_subplot(gs[0, 1], projection='3d')
-        self.plot_3d(ax=ax2, lim=lim, shape=shape)
-        plt.tight_layout()
-        if save_path is not None:
-            plt.savefig(save_path)
-        plt.show()
-    def plot_map(self, ax = None, lim=(0.0, 1.0, 0.0, 1.0), shape=(512, 512), azim=45, elev=30):
-        """2-D colour map of the terrain."""
-        heights = self.get_height(lim, shape)
-         # Convert to spatial gradients
-        #compute z_scale based on world-space dimensions to get correct slope angles for hillshading
+    def get_cell_size(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(100, 100)):
+        """Get the world-space size of each cell in the output grid in meters."""
+        max_range = self.world_params['max_size']
         x_min, x_max, y_min, y_max = lim
-        x_range = x_max - x_min
-        y_range = y_max - y_min
-        max_altitude = 1000.0  # assume 1000 m elevation over the world for slope calculations
-        max_width = 100_000.0
-        z_scale = max_altitude / max_width * max(shape) / max(x_range, y_range)
-        dx, dy = np.gradient(heights * z_scale)
+        cell_size_x = (x_max - x_min) * max_range / shape[0]
+        cell_size_y = (y_max - y_min) * max_range / shape[1]
+        return cell_size_x, cell_size_y
+    def plot(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(1024, 1024), save_path=None):
+        height_map = self.get_height(lim, shape)
+        plot(height_map, self.world_params, lim=lim, save_path=save_path)
+    
+    def plot2D(self, height_map, ax = None, lim=(0.0, 1.0, 0.0, 1.0)):
+        # delegate to the new plotter.plot2D signature which is:
+        # plot2D(height_map, world_params, hillshade_map=None, ax=None, lim=...)
+        return plot2D(height_map, self.world_params, hillshade_map=None, ax=ax, lim=lim)
 
-        # Surface normals
-        nx = -dx
-        ny = -dy
-        nz = np.ones_like(heights)
-
-        norm = np.sqrt(nx**2 + ny**2 + nz**2)
-        nx /= norm
-        ny /= norm
-        nz /= norm
-
-        # Light direction (convert angles to vector)
-        az = np.radians(azim)
-        alt = np.radians(elev)
-
-        lx = np.cos(alt) * np.cos(az)
-        ly = np.cos(alt) * np.sin(az)
-        lz = np.sin(alt)
-
-        # Dot product = illumination
-        hillshade = nx * lx + ny * ly + nz * lz
-        hillshade = np.clip(hillshade, 0, 1)
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(8, 8))
-
-        ax.imshow(heights, cmap='terrain', origin='lower', extent=lim, vmin=0, vmax=1)
-        ax.imshow(hillshade, cmap='gray', origin='lower', extent=lim, alpha=0.35)
-        ax.set_title('LOD Height Map (2D)')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_xlim(lim[0], lim[1])
-        ax.set_ylim(lim[2], lim[3])
-
-        if ax is None:
-            plt.show()
-
-    def plot_3d(self, ax = None, lim=(0.0, 1.0, 0.0, 1.0), shape=(256, 256)):
-        """3-D surface plot."""
-        heights = self.get_height(lim, shape)
-        x_min, x_max, y_min, y_max = lim
-        x = np.linspace(x_min, x_max, shape[0])
-        y = np.linspace(y_min, y_max, shape[1])
-        xv, yv = np.meshgrid(x, y, indexing='ij')
-        
-        
-        if ax is None:
-            fig = plt.figure(figsize=(10, 8))
-            ax = fig.add_subplot(111, projection='3d')
-
-        ax.plot_surface(xv, yv, heights, cmap='terrain', edgecolor='none', vmin=0, vmax=1)
-        ax.set_title('LOD Height Map (3D)')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Height')
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(y_min, y_max)
-        
-        
-        h_range = heights.max() - heights.min()
-        min_lim = heights.min() - 0.05 * h_range
-        max_lim = heights.max() + 1.5 * h_range
-
-        ax.set_zlim(min_lim, max_lim)
+    def plot3D(self, height_map, ax = None, lim=(0.0, 1.0, 0.0, 1.0)):
+        # delegate to the new plotter.plot3D signature which is:
+        # plot3D(height_map, world_params, hillshade_map=None, ax=None, lim=...)
+        return plot3D(height_map, self.world_params, hillshade_map=None, ax=ax, lim=lim)
+    
 
         
     def plot_slope_hist(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(256, 256)):

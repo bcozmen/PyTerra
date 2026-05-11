@@ -1,7 +1,71 @@
 import numpy as np
 from numba import njit
+from numpy.fft import fft2, ifft2, fftshift, ifftshift
+
+import time 
+from functools import wraps, lru_cache
 
 
+
+def time_wrapper(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(f"{func.__name__} took {end - start:.4f} seconds")
+        return result
+    return wrapper
+
+
+@lru_cache(maxsize=64)
+def _get_mask(h, w, cutoff, rolloff):
+    """
+    Precompute and cache frequency-domain low-pass mask.
+    """
+    fy = np.fft.fftfreq(h)[:, None]
+    fx = np.fft.fftfreq(w)[None, :]
+    radius = np.sqrt(fx * fx + fy * fy)
+
+    return 1.0 / (1.0 + (radius / cutoff) ** rolloff)
+
+
+def fft_lowpass(height, cutoff=0.15, rolloff=3.0):
+    """
+    Low-pass filter using FFT with edge-safe padding.
+
+    The previous implementation applied the FFT directly to the input which
+    causes circular convolution and can produce spurious values at the
+    boundaries. To avoid that we reflect-pad the input, perform the FFT in
+    the larger domain, apply the frequency mask sized for the padded shape,
+    then inverse-FFT and crop the result back to the original shape.
+
+    The padding size is chosen as half the longest dimension which is a good
+    trade-off between reducing wrap-around and keeping the frequency
+    resolution reasonable.
+    """
+    h, w = height.shape
+
+    # Choose padding: half the longest dimension (can be tuned).
+    pad = max(1, max(h, w) // 2)
+
+    # Reflect-pad to minimise seams (mirror avoids introducing DC offsets)
+    padded = np.pad(height, ((pad, pad), (pad, pad)), mode='reflect')
+    ph, pw = padded.shape
+
+    # FFT
+    F = np.fft.fft2(padded)
+
+    # Cached mask lookup for padded shape
+    mask = _get_mask(ph, pw, cutoff, rolloff)
+
+    # Apply filter
+    F *= mask
+
+    # Inverse FFT and crop back to original size
+    filtered = np.fft.ifft2(F).real
+    result = filtered[pad:pad + h, pad:pad + w]
+    return result
 
 @njit(cache=True)
 def diamond_square_numba(size, scale, roughness, seed=0):
@@ -91,3 +155,4 @@ def diamond_square_numba(size, scale, roughness, seed=0):
         current *= roughness
 
     return grid
+
