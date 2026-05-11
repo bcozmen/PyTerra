@@ -11,7 +11,7 @@ This project focuses on generating realistic terrains with infinite resolution u
 The following images demonstrate the generator's capability to produce terrains at varying levels of detail. Each image represents the same world, progressively zoomed in:
 
 | Level | Resolution | Asset |
-|-------|----------------:|-------|
+|-------|----------------|-------|
 | 1 - World | 100 km | ![Level 1](assets/0.jpg) |
 | 2 - Continent | 50 km | ![Level 2](assets/1.jpg) |
 | 3 - Region | 20 km | ![Level 3](assets/2.jpg) |
