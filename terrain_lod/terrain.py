@@ -46,6 +46,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from .helper import diamond_square_numba
 from .noise import fbm, domain_warp, ridge_fbm, domain_warp_aniso
 from .erosion import hydraulic_erosion, thermal_erosion
+import time
 
 
 # ---------------------------------------------------------------------------
@@ -354,14 +355,16 @@ class Terrain:
     # ------------------------------------------------------------------
     # Visualisation helpers
     # ------------------------------------------------------------------
-    def plot(self, lim=(0.0, 1.0, 0.0, 1.0), zlim = (0,1), shape=(1024, 1024), azim=45, elev=30, save_path=None):
+    def plot(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(1024, 1024), azim=45, elev=30, save_path=None):
         """Convenience method to plot the height map."""
         #2d hillshaded map with matplotlib, and 3D surface plot side by side
-        fig = plt.figure(figsize=(16, 8))
-        ax1 = fig.add_subplot(121)
+        fig = plt.figure(figsize=(16, 12))
+        #make the 2d map smaller than the 3d plot, so the 3d plot is more visible
+        gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.5])
+        ax1 = fig.add_subplot(gs[0, 0])
         self.plot_map(ax=ax1, lim=lim, shape=shape, azim=azim, elev=elev)
-        ax2 = fig.add_subplot(122, projection='3d')
-        self.plot_3d(ax=ax2, lim=lim, shape=shape, zlim=zlim)
+        ax2 = fig.add_subplot(gs[0, 1], projection='3d')
+        self.plot_3d(ax=ax2, lim=lim, shape=shape)
         plt.tight_layout()
         if save_path is not None:
             plt.savefig(save_path, dpi=300)
@@ -415,7 +418,7 @@ class Terrain:
         if ax is None:
             plt.show()
 
-    def plot_3d(self, ax = None, lim=(0.0, 1.0, 0.0, 1.0), shape=(256, 256), zlim=(0.0, 1.0)):
+    def plot_3d(self, ax = None, lim=(0.0, 1.0, 0.0, 1.0), shape=(256, 256)):
         """3-D surface plot."""
         heights = self.get_height(lim, shape)
         x_min, x_max, y_min, y_max = lim
@@ -435,7 +438,12 @@ class Terrain:
         ax.set_zlabel('Height')
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
-        ax.set_zlim(zlim)
+        
+        
+
+
+        min_lim, max_lim = heights.min() - 0.05, heights.max() * 3
+        ax.set_zlim(min_lim, max_lim)
 
         
     def plot_slope_hist(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(256, 256)):

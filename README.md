@@ -8,14 +8,14 @@ Welcome to the Infinite Terrain Generator! This project is all about creating re
 
 Here’s a sneak peek at what the generator can do. Each image shows the same world, zoomed in progressively:
 
-| Level |Preview |
-|-------|--------|
-| **1** World  | ![Level 1](assets/1.png) |
-| **2** Continent  | ![Level 2](assets/2.png) |
-| **3** Region  | ![Level 3](assets/3.png) |
-| **4** Area | ![Level 4](assets/4.png) |
-| **5** Valley  | ![Level 5](assets/5.png) |
-| **6** Hillside  | ![Level 6](assets/6.png) |
+
+| Level | Length | Asset |
+|-------|----------------:|-------|
+| Level 1 — World | 100 km | ![Level 1](assets/1.png) |
+| Level 2 — Continent | 50 km | ![Level 2](assets/2.png) |
+| Level 3 — Region | 20 km | ![Level 3](assets/3.png) |
+| Level 4 — Area | 10 km | ![Level 4](assets/4.png) |
+| Level 5 — Valley | 5 km | ![Level 5](assets/5.png) |
 
 ---
 
