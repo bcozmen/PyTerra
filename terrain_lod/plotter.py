@@ -136,7 +136,7 @@ def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 
     shade = np.clip(shade, 0, 1.0)[..., None] #avoid too dark areas
 
     final_colors = terrain_color(height_map) * shade
-    ax.plot_surface(x, y, height_map, facecolors=final_colors, linewidth=0, cmap = 'terrain', antialiased=False)
+    ax.plot_surface(x, y, height_map, linewidth=0, cmap = 'terrain', vmin=0, vmax=1, facecolors=final_colors)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Height')
