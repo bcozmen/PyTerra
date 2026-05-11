@@ -1,4 +1,4 @@
-![](assets/0.png)
+![](assets/0.jpg)
 
 # Infinite Terrain Generator
 
@@ -10,13 +10,14 @@ This project focuses on generating realistic terrains with infinite resolution u
 
 The following images demonstrate the generator's capability to produce terrains at varying levels of detail. Each image represents the same world, progressively zoomed in:
 
-| Level | Length | Asset |
+| Level | Resolution | Asset |
 |-------|----------------:|-------|
-| Level 1 — World | 100 km | ![Level 1](assets/0.png) |
-| Level 2 — Continent | 50 km | ![Level 2](assets/1.png) |
-| Level 3 — Region | 20 km | ![Level 3](assets/2.png) |
-| Level 4 — Area | 10 km | ![Level 4](assets/3.png) |
-| Level 5 — Valley | 5 km | ![Level 5](assets/4.png) |
+| 1 - World | 100 km | ![Level 1](assets/0.jpg) |
+| 2 - Continent | 50 km | ![Level 2](assets/1.jpg) |
+| 3 - Region | 20 km | ![Level 3](assets/2.jpg) |
+| 4 - Area | 10 km | ![Level 4](assets/3.jpg) |
+| 5 - Valley | 5 km | ![Level 5](assets/4.jpg) |
+| 6 - Hill | 5 km | ![Level 5](assets/5.jpg) |
 
 ---
 

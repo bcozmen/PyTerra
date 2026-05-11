@@ -367,7 +367,7 @@ class Terrain:
         self.plot_3d(ax=ax2, lim=lim, shape=shape)
         plt.tight_layout()
         if save_path is not None:
-            plt.savefig(save_path, dpi=300)
+            plt.savefig(save_path)
         plt.show()
     def plot_map(self, ax = None, lim=(0.0, 1.0, 0.0, 1.0), shape=(512, 512), azim=45, elev=30):
         """2-D colour map of the terrain."""
@@ -440,9 +440,10 @@ class Terrain:
         ax.set_ylim(y_min, y_max)
         
         
+        h_range = heights.max() - heights.min()
+        min_lim = heights.min() - 0.05 * h_range
+        max_lim = heights.max() + 1.5 * h_range
 
-
-        min_lim, max_lim = heights.min() - 0.05, heights.max() * 3
         ax.set_zlim(min_lim, max_lim)
 
         
