@@ -215,9 +215,10 @@ class Terrain:
             macro = self._get_noise(xv, yv, params)
             # Scale noise to [-1, 1] range for exp argument
             macro_norm = macro / (np.abs(macro).max() + 1e-8)
-            macro_factor = np.exp(params['weight'] * macro_norm)
-            base *= macro_factor
-
+            
+            #base *= macro_factor
+            weight = params['weight'] / (params['base_freq']+1)  #scale weight by base_freq to keep the same physical influence regardless of the frequency
+            base = base * (1 - weight) + macro_norm * weight  #blend rather than pure multiplication to preserve some of the base structure
             plt.imshow(base, cmap='terrain')
             plt.title('Macro Noise Map')
             plt.colorbar(label='Height')
@@ -256,11 +257,13 @@ class Terrain:
 
         # ---- 6. Slope-based erosion feedback (Item 4) ----
         # Cliffs sharpen, valleys smooth, drainage networks emerge naturally.
-        combined = combined.astype(np.float64)
-        grad_x, grad_y = np.gradient(combined)
-        slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
-        combined *= erosion_mask
+        # Gradient in world-space [0,1] coords so slope_feedback_strength has a
+        # consistent meaning (dh per world-unit) regardless of base grid size.
+        #combined = combined.astype(np.float64)
+        #grad_x, grad_y = np.gradient(combined, x, y)
+        #slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
+        #erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
+        #combined *= erosion_mask
 
         plt.imshow(combined, cmap='terrain')
         plt.title('Slope-based Erosion Feedback Map')
@@ -313,15 +316,7 @@ class Terrain:
         points = np.stack([xv.ravel(), yv.ravel()], axis=-1)
         heights = self._base_interp(points).reshape(shape)
 
-        # ---- Slope-based erosion feedback at fine scale (Item 4) ----
-        # Use dimensionless (grid-unit) gradient, consistent with _build_base.
-        # Physical cell sizes are only needed for the slope histogram / hillshade,
-        # not for this multiplicative mask whose tuning constant (5.0) was chosen
-        # in grid-unit space.
-        grad_x, grad_y = np.gradient(heights)
-        slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
-        heights *= erosion_mask
+        
 
         # ---- Micro detail: elevation-biased deposition (Items 2 & 4) ----
         # World-space coords ensure seamless stitching across tile boundaries.
@@ -331,29 +326,29 @@ class Terrain:
             noise = self._get_noise(xv, yv, param)
             #scale to [-1, 1] for better control over amplification/suppression via exp-scaling
             noise = noise / (np.abs(noise).max() + 1e-8)
-            noise =  np.exp(param['weight'] * noise) #amplify detail in mid-range terrain, suppress at high altitudes
-            heights  *= noise
+            
+            #noise =  np.exp(param['weight'] * noise) #amplify detail in mid-range terrain, suppress at high altitudes
+            #heights  *= noise
+            weight = param['weight'] / (param['base_freq'])  #scale weight by base_freq to keep the same physical influence regardless of the frequency
+            heights = heights * (1 - weight) + noise * weight  #blend rather than pure multiplication to preserve some of the base structure
+        
+        # ---- Slope-based erosion feedback at fine scale (Item 4) ----
+        # Gradient is computed in world-space coordinates [0, 1] so slope is
+        # dh/d_world — invariant to zoom level and output resolution.
+        # At any zoom, the same physical slope produces the same mask value.
+        #grad_x, grad_y = np.gradient(heights, x, y)
+        #slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
+        #erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
+        #heights *= erosion_mask
 
-        # ---- Scale-consistent FFT smoothing ----
-        # Adaptive cutoff so the same *physical* wavelength threshold is enforced
-        # regardless of zoom level or output resolution.
-        #
-        #   base_cell  = world-space size of one base-map pixel (m)
-        #   query_cell = world-space size of one output pixel (m)
-        #   cutoff     = fft_cutoff * base_cell / query_cell
-        #
-        # Zoomed in  (small query_cell): cutoff rises → less smoothing → fine
-        #            detail visible at appropriate scale.
-        # Zoomed out (large query_cell): cutoff falls → more smoothing → coarse
-        #            features only, no Nyquist artefacts from the base interpolator.
-        # At base resolution (query_cell == base_cell): cutoff == fft_cutoff.
+
         wp = self.world_params
-        cell_size_x, cell_size_y = self.get_cell_size(lim, shape)
-        base_cell = wp['max_size'] / self.base_params['size']
-        adaptive_cutoff = float(np.clip(
-            wp['fft_cutoff'] * base_cell / cell_size_x,
-            0.05, 0.45,
-        ))
+        #cell_size_x, cell_size_y = self.get_cell_size(lim, shape)
+        #base_cell = wp['max_size'] / self.base_params['size']
+        #adaptive_cutoff = float(np.clip(
+        #    wp['fft_cutoff'] * base_cell / cell_size_x,
+        #    0.05, 0.45,
+        #))
         #heights = fft_lowpass(heights, cutoff=adaptive_cutoff, rolloff=wp['fft_rolloff'])
 
         return heights

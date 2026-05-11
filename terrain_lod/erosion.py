@@ -107,6 +107,14 @@ def hydraulic_erosion(
             if speed < 1e-7:
                 break
 
+            # Normalise to unit step so the droplet always moves exactly
+            # one cell per iteration.  Without this, gradients in a [0,1]
+            # height map are ~0.001, speed stays near zero, and capacity
+            # (and therefore erosion) is negligible.
+            inv_speed = 1.0 / speed
+            vx *= inv_speed
+            vy *= inv_speed
+
             # Bilinear height at current position
             cur_h = (
                 h00 * (1.0 - fx) * (1.0 - fy)
@@ -133,7 +141,7 @@ def hydraulic_erosion(
             )
 
             slope = cur_h - nh
-            capacity = max(slope, min_slope) * speed * water * 8.0
+            capacity = max(slope, min_slope) * speed * water * 15.0
 
             if sediment > capacity:
                 # Deposit excess sediment

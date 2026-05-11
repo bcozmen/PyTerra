@@ -91,7 +91,7 @@ def plot(height_map, world_params, lim=(0.0, 1.0, 0.0, 1.0),save_path=None, azim
         plt.savefig(save_path)
     plt.show()
 
-    plot_slope_histogram(height_map, world_params)
+    plot_slope_histogram(height_map, world_params, lim=lim)
 
 
 def plot2D(height_map, world_params, hillshade_map=None, ax= None, lim = (0.0, 1.0, 0.0,1.0)):

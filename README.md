@@ -4,6 +4,8 @@
 
 This project focuses on generating realistic terrains with infinite resolution using Python. By leveraging Numba, the generator achieves high computational efficiency, enabling detailed exploration from large-scale continents to small valleys.
 
+It creates a base map using diamond-square algorithm. And combines interpolation of the base map and finer frequency FBM noise to generate zoomable maps. 
+
 ---
 
 ## Gallery: Zooming In
