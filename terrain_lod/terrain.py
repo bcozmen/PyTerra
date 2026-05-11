@@ -201,7 +201,13 @@ class Terrain:
         continent_mask = continent_mask / (continent_mask.max() + 1e-8)
         # Blend: ocean floors stay near 0.3, continents scale up to 1.0
         continent_mask = 0.3 + 0.7 * continent_mask
-        base *= continent_mask
+        #base *= continent_mask
+
+        import matplotlib.pyplot as plt
+        plt.imshow(base, cmap='terrain')
+        plt.title('Base Map')
+        plt.colorbar(label='Height')
+        plt.show()
 
         # ---- 3. Macro noise layers: multiplicative shaping (Item 1) ----
         # Mountains grow by amplification, plains stay flat near mult=1.
@@ -212,6 +218,12 @@ class Terrain:
             macro_factor = np.exp(params['weight'] * macro_norm)
             base *= macro_factor
 
+            plt.imshow(base, cmap='terrain')
+            plt.title('Macro Noise Map')
+            plt.colorbar(label='Height')
+            plt.show()
+
+
         combined = base
 
         # ---- 4. Thermal erosion: knock down spike artefacts ----
@@ -220,6 +232,11 @@ class Terrain:
             iterations=lp['thermal_iterations'],
             talus=lp['talus'],
         )
+
+        plt.imshow(combined, cmap='terrain')
+        plt.title('Thermal Erosion Map')
+        plt.colorbar(label='Height')
+        plt.show()
 
         # ---- 5. Hydraulic erosion: carve valleys / river channels ----
         if self.erode:
@@ -232,29 +249,39 @@ class Terrain:
                 seed=self.seed,
             )
 
+        plt.imshow(combined, cmap='terrain')
+        plt.title('Hydraulic Erosion Map')
+        plt.colorbar(label='Height')
+        plt.show()
+
         # ---- 6. Slope-based erosion feedback (Item 4) ----
         # Cliffs sharpen, valleys smooth, drainage networks emerge naturally.
         combined = combined.astype(np.float64)
         grad_x, grad_y = np.gradient(combined)
         slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        erosion_mask = np.exp(-slope * 5.0)
+        erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
         combined *= erosion_mask
 
+        plt.imshow(combined, cmap='terrain')
+        plt.title('Slope-based Erosion Feedback Map')
+        plt.colorbar(label='Height')
+        plt.show()
 
         # ---- 7. FFT low-pass: remove spike artefacts at base-map resolution ----
         # Cutoff and rolloff come from world_params so the same physical wavelength
         # threshold applies whenever the base map is smoothed.
         wp = self.world_params
-        combined = fft_lowpass(
-            combined,
-            cutoff=wp['fft_cutoff'],
-            rolloff=wp['fft_rolloff'],
-        )
+        #combined = fft_lowpass(
+        #    combined,
+        #    cutoff=wp['fft_cutoff'],
+        #    rolloff=wp['fft_rolloff'],
+        #)
 
         # ---- 8. Percentile normalisation (Item 5) ----
         # Preserves extreme cliffs; avoids washed-out continents.
-        lo, hi = np.percentile(combined, [2, 98])
-        combined = np.clip((combined - lo) / (hi - lo + 1e-8), 0.0, 1.0)
+        #lo, hi = np.percentile(combined, [2, 98])
+        #combined = np.clip((combined - lo) / (hi - lo + 1e-8), 0.0, 1.0)
+        combined = (combined - combined.min()) / (combined.max() - combined.min())
 
         return RegularGridInterpolator(
             (x, y), combined, method='cubic', bounds_error=False, fill_value=None
@@ -293,7 +320,7 @@ class Terrain:
         # in grid-unit space.
         grad_x, grad_y = np.gradient(heights)
         slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        erosion_mask = np.exp(-slope * 5.0)
+        erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
         heights *= erosion_mask
 
         # ---- Micro detail: elevation-biased deposition (Items 2 & 4) ----
@@ -302,8 +329,10 @@ class Terrain:
         # mid-range terrain receives the most surface variation.
         for param in self.micro_params:
             noise = self._get_noise(xv, yv, param)
-            micro_strength = param['amplitude']
-            heights = heights + micro_strength * noise
+            #scale to [-1, 1] for better control over amplification/suppression via exp-scaling
+            noise = noise / (np.abs(noise).max() + 1e-8)
+            noise =  np.exp(param['weight'] * noise) #amplify detail in mid-range terrain, suppress at high altitudes
+            heights  *= noise
 
         # ---- Scale-consistent FFT smoothing ----
         # Adaptive cutoff so the same *physical* wavelength threshold is enforced
@@ -325,7 +354,7 @@ class Terrain:
             wp['fft_cutoff'] * base_cell / cell_size_x,
             0.05, 0.45,
         ))
-        heights = fft_lowpass(heights, cutoff=adaptive_cutoff, rolloff=wp['fft_rolloff'])
+        #heights = fft_lowpass(heights, cutoff=adaptive_cutoff, rolloff=wp['fft_rolloff'])
 
         return heights
 
@@ -339,9 +368,9 @@ class Terrain:
         cell_size_x = (x_max - x_min) * max_range / shape[0]
         cell_size_y = (y_max - y_min) * max_range / shape[1]
         return cell_size_x, cell_size_y
-    def plot(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(1024, 1024), save_path=None):
+    def plot(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(1024, 1024), save_path=None, azim=None, elev=None):
         height_map = self.get_height(lim, shape)
-        plot(height_map, self.world_params, lim=lim, save_path=save_path)
+        plot(height_map, self.world_params, lim=lim, save_path=save_path, azim=azim, elev=elev)
     
     def plot2D(self, height_map, ax = None, lim=(0.0, 1.0, 0.0, 1.0)):
         # delegate to the new plotter.plot2D signature which is:
@@ -355,24 +384,5 @@ class Terrain:
     
 
         
-    def plot_slope_hist(self, lim=(0.0, 1.0, 0.0, 1.0), shape=(256, 256)):
-        """Histogram of slope angles (degrees).
-
-        Uses a physical scale of 1000 m elevation over 100 km to produce
-        geologically plausible slope values.
-        """
-        MAX_ALT_M = 1000.0
-        RANGE_M   = 100_000.0
-        heights = self.get_height(lim, shape) * MAX_ALT_M
-        dx = (lim[1] - lim[0]) * RANGE_M / shape[0]
-        dy = (lim[3] - lim[2]) * RANGE_M / shape[1]
-        grad_x, grad_y = np.gradient(heights, dx, dy)
-        slope = np.degrees(np.arctan(np.sqrt(grad_x**2 + grad_y**2)))
-        plt.figure()
-        plt.hist(slope.ravel(), bins=50, color='steelblue', alpha=0.8, edgecolor='white')
-        plt.title('Slope Distribution')
-        plt.xlabel('Slope (degrees)')
-        plt.ylabel('Frequency')
-        plt.show()
 
 

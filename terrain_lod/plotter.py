@@ -4,7 +4,7 @@ import numpy as np
 plotter_params = {
     'shade_azim': 45,
     'shade_elev': 30,
-    '3D_azim': -60,
+    '3D_azim': -180-30,
     '3D_elev': 30,
 }
 
@@ -74,7 +74,7 @@ def lambert_shade(z, light_dir=(0.3, 0.3, 1.0)):
     )
     return shade
 
-def plot(height_map, world_params, lim=(0.0, 1.0, 0.0, 1.0),save_path=None):
+def plot(height_map, world_params, lim=(0.0, 1.0, 0.0, 1.0),save_path=None, azim = None, elev = None):
     """Convenience method to plot the height map."""
     hillshade_map = hillshade(height_map, world_params, lim)
     #2d hillshaded map with matplotlib, and 3D surface plot side by side
@@ -84,7 +84,7 @@ def plot(height_map, world_params, lim=(0.0, 1.0, 0.0, 1.0),save_path=None):
     ax1 = fig.add_subplot(gs[0, 0])
     plot2D(height_map, world_params, hillshade_map=hillshade_map, ax=ax1, lim=lim)
     ax2 = fig.add_subplot(gs[0, 1], projection='3d')
-    plot3D(height_map, world_params, hillshade_map=hillshade_map, ax=ax2, lim=lim)
+    plot3D(height_map, world_params, hillshade_map=hillshade_map, ax=ax2, lim=lim, azim=azim, elev=elev)
     plt.tight_layout()
 
     if save_path is not None:
@@ -116,7 +116,7 @@ def terrain_color(z):
 
     return colors
 
-def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 1.0, 0.0,1.0)):
+def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 1.0, 0.0,1.0), azim = None, elev = None):
     if ax is None:
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
@@ -128,9 +128,17 @@ def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 
     y = np.linspace(y_min, y_max, height_map.shape[0])
     x, y = np.meshgrid(x, y, indexing='ij')
 
+    
+
     h_range = height_map.max() - height_map.min()
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+    max_range = 1 + 4 * max(x_range, y_range)
+
     min_lim = height_map.min() - 0.05 * h_range
-    max_lim = height_map.max() + 1.5 * h_range
+    max_lim = height_map.max() + 1.5 * h_range * max_range
+    
+
     shade = lambert_shade(height_map)
     shade = shade * cheap_ao(height_map) #combine lambert shading with ambient occlusion for better visual effect
     shade = np.clip(shade, 0, 1.0)[..., None] #avoid too dark areas
@@ -142,7 +150,10 @@ def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 
     ax.set_zlabel('Height')
     ax.set_title('3D Terrain')
     ax.set_zlim(min_lim, max_lim)
-    ax.view_init(elev=plotter_params['3D_elev'], azim=plotter_params['3D_azim'])
+    
+    elev = elev if elev is not None else plotter_params['3D_elev']
+    azim = azim if azim is not None else plotter_params['3D_azim']
+    ax.view_init(elev=elev, azim=azim)
     return ax
 
 def plot_slope_histogram(height_map, world_params, ax=None, lim=(0.0, 1.0, 0.0, 1.0)):

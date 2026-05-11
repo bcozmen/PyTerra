@@ -35,7 +35,7 @@ def hydraulic_erosion(
     erosion_rate: float = 0.03,
     deposition_rate: float = 0.03,
     evaporation: float = 0.02,
-    min_slope: float = 0.001,
+    min_slope: float = 0.0005,
     seed: int = 0,
 ):
     """Particle-based hydraulic erosion.
@@ -106,8 +106,6 @@ def hydraulic_erosion(
             speed = (vx * vx + vy * vy) ** 0.5
             if speed < 1e-7:
                 break
-            vx /= speed
-            vy /= speed
 
             # Bilinear height at current position
             cur_h = (
@@ -135,7 +133,7 @@ def hydraulic_erosion(
             )
 
             slope = cur_h - nh
-            capacity = max(slope, min_slope) * water
+            capacity = max(slope, min_slope) * speed * water * 8.0
 
             if sediment > capacity:
                 # Deposit excess sediment
@@ -147,10 +145,7 @@ def hydraulic_erosion(
                 out[ix + 1, iy + 1] += deposit * fx         * fy
             else:
                 # Erode — capped so we never dig below neighbours
-                erode = min(
-                    erosion_rate * (capacity - sediment),
-                    abs(slope) + 1e-4,
-                )
+                erode = erosion_rate * (capacity - sediment)
                 sediment += erode
                 out[ix,     iy    ] -= erode * (1.0 - fx) * (1.0 - fy)
                 out[ix + 1, iy    ] -= erode * fx         * (1.0 - fy)
