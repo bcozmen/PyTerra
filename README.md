@@ -1,4 +1,7 @@
+![](assets/0.png)
+
 # Infinite Terrain Generator
+
 
 Welcome to the Infinite Terrain Generator! This project is all about creating realistic, infinite-resolution terrains using Python. Whether you're zooming out to see entire continents or zooming in to explore tiny valleys, this generator has you covered.
 
