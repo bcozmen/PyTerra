@@ -3,7 +3,7 @@ from .micro import micro_params
 from .erosion import erosion_params
 
 ds_params = {
-    'size_exponent': 12,
+    'size_exponent': 11,
     'scale': 1.0,
     'roughness': 0.55,
 }

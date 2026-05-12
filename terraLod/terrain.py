@@ -9,7 +9,6 @@ from .erosion import hydraulic_erosion, thermal_erosion, air_erosion
 from .plotter import Plotter
 
 
-from .parameters import world_params
 
 
 DEBUG = True
@@ -27,7 +26,7 @@ class HMap():
 
 
 class Terrain():
-    def __init__(self, world_params = world_params):
+    def __init__(self, world_params):
         self.world_params = world_params
         self._init_plotter()
 
@@ -149,4 +148,6 @@ class Terrain():
 
         
         
+
+
 

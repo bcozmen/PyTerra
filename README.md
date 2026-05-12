@@ -13,12 +13,13 @@ It creates a base map using diamond-square algorithm. And combines interpolation
 
 | Level | Resolution | Asset |
 |-------|----------------|-------|
-| 1 - World | ~100 km | ![Level 1](assets/0.jpg) |
-| 2 - Continent | ~50 km | ![Level 2](assets/1.jpg) |
-| 3 - Region | ~25 km | ![Level 3](assets/2.jpg) |
-| 4 - Area | ~15 km | ![Level 4](assets/3.jpg) |
-| 5 - Valley | ~5 km | ![Level 5](assets/4.jpg) |
-| 6 - Hill | ~2 km | ![Level 5](assets/5.jpg) |
+| 1 - Zone | ~100 km | ![Level 1](assets/0.jpg) |
+| 2 - County | ~50 km | ![Level 2](assets/1.jpg) |
+| 3 - Cluster | ~25 km | ![Level 3](assets/2.jpg) |
+| 4 - City | ~12 km | ![Level 4](assets/3.jpg) |
+| 5 - Town | ~6 km | ![Level 5](assets/4.jpg) |
+| 6 - Village | ~3 km | ![Level 6](assets/5.jpg) |
+| 7 - Hamlet | ~1.5 km | ![Level 7](assets/6.jpg) |
 
 ---
 
