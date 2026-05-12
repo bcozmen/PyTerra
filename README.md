@@ -13,19 +13,19 @@ It creates a base map using diamond-square algorithm. And combines interpolation
 
 | Level | Resolution | Asset |
 |-------|----------------|-------|
-| 1 - World | 100 km | ![Level 1](assets/0.jpg) |
-| 2 - Continent | 50 km | ![Level 2](assets/1.jpg) |
-| 3 - Region | 20 km | ![Level 3](assets/2.jpg) |
-| 4 - Area | 10 km | ![Level 4](assets/3.jpg) |
-| 5 - Valley | 5 km | ![Level 5](assets/4.jpg) |
-| 6 - Hill | 1 km | ![Level 5](assets/5.jpg) |
+| 1 - World | ~100 km | ![Level 1](assets/0.jpg) |
+| 2 - Continent | ~50 km | ![Level 2](assets/1.jpg) |
+| 3 - Region | ~25 km | ![Level 3](assets/2.jpg) |
+| 4 - Area | ~15 km | ![Level 4](assets/3.jpg) |
+| 5 - Valley | ~5 km | ![Level 5](assets/4.jpg) |
+| 6 - Hill | ~2 km | ![Level 5](assets/5.jpg) |
 
 ---
 
 ## Features
 
 - **Infinite terrains**: Generate heightmaps at any zoom level.
-- **Realistic erosion**: Simulate thermal and hydraulic erosion for natural-looking landscapes.
+- **Realistic erosion**: Simulate thermal, hydraulic and wind erosion for natural-looking landscapes.
 - **Customizable**: Adjust parameters to create diverse and unique terrains.
 - **Visualization tools**: Preview terrains in both 2D and 3D.
 - **Optimized performance**: Critical computations are accelerated using Numba.
