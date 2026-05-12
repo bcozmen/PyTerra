@@ -133,10 +133,10 @@ def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 
     h_range = height_map.max() - height_map.min()
     x_range = x_max - x_min
     y_range = y_max - y_min
-    max_range = 1 + 4 * max(x_range, y_range)
+    max_range = 1 + 3 * np.sqrt(max(x_range, y_range))
 
     min_lim = height_map.min() - 0.05 * h_range
-    max_lim = height_map.max() + 1 * h_range * max_range
+    max_lim = height_map.max() + (h_range * max_range)
 
     cell_size = (world_params['max_size'] * max_range) / height_map.shape[0]
     z_meters = height_map * world_params['max_altitude']
