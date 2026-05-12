@@ -9,7 +9,7 @@ world_params = {
 }
 #: Low-resolution base grid (diamond-square).  size must be 2^n + 1.
 base_params = {
-    'size': 2**12 + 1,
+    'size': 2**11 + 1,
     'scale': 1.0,
     'roughness': 0.55,
 }

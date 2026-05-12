@@ -60,8 +60,8 @@ def cheap_ao(z):
     ao = 1.0 / (1.0 + 5.0 * slope)
     return ao
 
-def lambert_shade(z, light_dir=(0.3, 0.3, 1.0)):
-    n = compute_normals(z)
+def lambert_shade(z, light_dir=(0.25, 0.25, 5.0), cell_size=1.0):
+    n = compute_normals(z, scale=cell_size)
 
     L = np.array(light_dir)
     L = L / np.linalg.norm(L)
@@ -137,14 +137,31 @@ def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 
 
     min_lim = height_map.min() - 0.05 * h_range
     max_lim = height_map.max() + 1 * h_range * max_range
+
+    cell_size = (world_params['max_size'] * max_range) / height_map.shape[0]
+    z_meters = height_map * world_params['max_altitude']
     
 
-    shade = lambert_shade(height_map)
-    shade = shade * cheap_ao(height_map) #combine lambert shading with ambient occlusion for better visual effect
-    shade = np.clip(shade, 0, 1.0)[..., None] #avoid too dark areas
+    ambient = 0.6
+    shade = lambert_shade(height_map, cell_size=cell_size)
+    shade = shade ** 0.8  # gamma correction for better contrast
+    shade = ambient + (1.0 - ambient) * shade
+    
+    # Ensure shade has the right shape for broadcasting (H, W, 1)
+    shade = shade[..., None] 
 
-    final_colors = terrain_color(height_map) * shade
-    ax.plot_surface(x, y, height_map, linewidth=0, cmap = 'terrain', vmin=0, vmax=1, facecolors=final_colors)
+    # 2. CALCULATE FINAL COLORS
+    # terrain_color should return an (H, W, 3) or (H, W, 4) array
+    base_colors = terrain_color(height_map) 
+    final_colors = base_colors * shade
+    
+    # 3. PLOT (Removed cmap, vmin, vmax as facecolors handles it)
+    ax.plot_surface(
+        x, y, height_map, 
+        linewidth=0, 
+        facecolors=final_colors, 
+        antialiased=True # Smoother visuals
+    )
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Height')
