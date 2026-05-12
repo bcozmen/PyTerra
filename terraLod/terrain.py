@@ -83,20 +83,6 @@ class Terrain():
         
         return ds_base
 
-    def plot_diff(self,old, new, title = "Difference"):
-        diff = new - old
-
-        max_range = np.max(np.abs(diff))
-        if max_range > 0 and max_range < 1e-2:
-            diff *= 1e2
-            
-        #clip outliers for better visualization
-        plt.imshow(diff, cmap='seismic')
-        plt.colorbar(label='Height change')
-        plt.title(title)
-        plt.show()
-
-
     @timeit
     def erode(self, height_map):
         h_params, t_params, a_params = scale_erosion_params(self.world_params)
@@ -104,18 +90,10 @@ class Terrain():
         h_params['seed']       = self.world_params['seed'] + 2000
         h_params['iterations'] = int(total_cells * h_params['hydraulic_iterations_density'])
 
-        old_map = height_map.copy()
         eroded = thermal_erosion(height_map, **t_params)
-        self.plot_diff(old_map, eroded, title="After Thermal Erosion")
-        old_map = eroded.copy()
         eroded = hydraulic_erosion(eroded, **h_params)
-        self.plot_diff(old_map, eroded, title="After Hydraulic Erosion")
-        old_map = eroded.copy()
         eroded = air_erosion(eroded, **a_params)
-        self.plot_diff(old_map, eroded, title="After Air Erosion")
         return eroded
-
-
 
     @timeit
     def build_noise(self, ds_base, parameters, macro = True, lim = (0, 1, 0, 1)):
