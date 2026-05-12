@@ -136,7 +136,7 @@ def plot3D(height_map, world_params, hillshade_map=None, ax = None, lim = (0.0, 
     max_range = 1 + 4 * max(x_range, y_range)
 
     min_lim = height_map.min() - 0.05 * h_range
-    max_lim = height_map.max() + 1.5 * h_range * max_range
+    max_lim = height_map.max() + 1 * h_range * max_range
     
 
     shade = lambert_shade(height_map)

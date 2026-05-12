@@ -61,6 +61,7 @@ from .params import (
 # LOD class
 # ---------------------------------------------------------------------------
 
+DEBUG_MODE = False  # if True, skip expensive erosion passes for fast previews
 class Terrain:
     """Infinite-resolution terrain via interpolation + detail noise.
 
@@ -240,10 +241,11 @@ class Terrain:
         plt.show()
 
         # ---- 5. Hydraulic erosion: carve valleys / river channels ----
+        total_pixels = combined.shape[0] * combined.shape[1]
         if self.erode:
             combined = hydraulic_erosion(
                 combined,
-                iterations=lp['hydraulic_iterations'],
+                iterations=int(lp['hydraulic_iterations_density'] * total_pixels),
                 erosion_rate=lp['erosion_rate'],
                 deposition_rate=lp['deposition_rate'],
                 evaporation=lp['evaporation'],

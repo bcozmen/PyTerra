@@ -21,14 +21,14 @@ initial noise spikes, and optionally *after* to soften artefacts.
 """
 
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 
 # ---------------------------------------------------------------------------
 # Hydraulic erosion
 # ---------------------------------------------------------------------------
 
-@njit(cache=True)
+@njit(cache=True, parallel=True, fastmath=True)
 def hydraulic_erosion(
     grid,
     iterations: int = 80,
@@ -58,8 +58,6 @@ def hydraulic_erosion(
     out = grid.copy()
 
     # Simple 64-bit LCG — fast and numba-compatible
-    state = np.uint64(seed)
-
     def _lcg(s):
         s = np.uint64(
             (s * np.uint64(6364136223846793005) + np.uint64(1442695040888963407))
@@ -67,7 +65,12 @@ def hydraulic_erosion(
         )
         return s, float(s >> np.uint64(11)) / float(np.uint64(1) << np.uint64(53))
 
-    for _ in range(iterations):
+    for i in prange(iterations):
+        # Each droplet gets its own independent RNG state derived from seed + index.
+        # Multiplying by a large prime spreads the seeds well across LCG space.
+        state = np.uint64(seed) ^ np.uint64(i) * np.uint64(2654435761)
+        state, _ = _lcg(state)   # warm up
+
         # Random start position (at least 1 cell away from border)
         state, rx = _lcg(state)
         state, ry = _lcg(state)

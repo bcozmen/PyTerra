@@ -9,7 +9,7 @@ world_params = {
 }
 #: Low-resolution base grid (diamond-square).  size must be 2^n + 1.
 base_params = {
-    'size': 2**10 + 1,
+    'size': 2**12 + 1,
     'scale': 1.0,
     'roughness': 0.55,
 }
@@ -19,7 +19,7 @@ base_params = {
 erosion_params = {
     'thermal_iterations': 50,
     'talus': 0.02,
-    'hydraulic_iterations': 250_000,
+    'hydraulic_iterations_density': 1.0,
     'erosion_rate': 0.03,
     'deposition_rate': 0.015,
     'evaporation': 0.015,
