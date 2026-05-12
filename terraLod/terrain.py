@@ -36,27 +36,27 @@ class Terrain():
 
         noise, weights = self.build_noise(ds_base, self.world_params['macro_params'], macro = True)
         combined_noise = self.combine_noise(noise, weights)
-        print("Combined noise:")
-        self.plotter.plot(combined_noise, shade=True, plot_slope_histogram=False)
+        #print("Combined noise:")
+        #self.plotter.plot(combined_noise, shade=True, plot_slope_histogram=False)
         combined_noise = normalize(combined_noise, range =(-1, 1))
 
         
 
-        print("Base height map:")
-        self.plotter.plot(ds_base, shade=True, plot_slope_histogram=False)
+        #print("Base height map:")
+        #self.plotter.plot(ds_base, shade=True, plot_slope_histogram=False)
 
         
         combined = ds_base * np.exp(self.world_params['noise_exp_factor'] * combined_noise)
         combined = normalize(combined)
-        print("Combined height map before erosion:")
-        self.plotter.plot(combined, shade=True, plot_slope_histogram=False)
+        #print("Combined height map before erosion:")
+        #self.plotter.plot(combined, shade=True, plot_slope_histogram=False)
         
         eroded = self.erode(combined)
         eroded = normalize(eroded)
 
 
-        print("Final:")
-        self.plotter.plot(eroded, shade=True, plot_slope_histogram=False)
+        #print("Final:")
+        #self.plotter.plot(eroded, shade=True, plot_slope_histogram=False)
 
         self.base_map = self.get_interpolator(eroded)
 
