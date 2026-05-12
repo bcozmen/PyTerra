@@ -257,35 +257,7 @@ class Terrain:
         plt.colorbar(label='Height')
         plt.show()
 
-        # ---- 6. Slope-based erosion feedback (Item 4) ----
-        # Cliffs sharpen, valleys smooth, drainage networks emerge naturally.
-        # Gradient in world-space [0,1] coords so slope_feedback_strength has a
-        # consistent meaning (dh per world-unit) regardless of base grid size.
-        #combined = combined.astype(np.float64)
-        #grad_x, grad_y = np.gradient(combined, x, y)
-        #slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        #erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
-        #combined *= erosion_mask
 
-        plt.imshow(combined, cmap='terrain')
-        plt.title('Slope-based Erosion Feedback Map')
-        plt.colorbar(label='Height')
-        plt.show()
-
-        # ---- 7. FFT low-pass: remove spike artefacts at base-map resolution ----
-        # Cutoff and rolloff come from world_params so the same physical wavelength
-        # threshold applies whenever the base map is smoothed.
-        wp = self.world_params
-        #combined = fft_lowpass(
-        #    combined,
-        #    cutoff=wp['fft_cutoff'],
-        #    rolloff=wp['fft_rolloff'],
-        #)
-
-        # ---- 8. Percentile normalisation (Item 5) ----
-        # Preserves extreme cliffs; avoids washed-out continents.
-        #lo, hi = np.percentile(combined, [2, 98])
-        #combined = np.clip((combined - lo) / (hi - lo + 1e-8), 0.0, 1.0)
         combined = (combined - combined.min()) / (combined.max() - combined.min())
 
         return RegularGridInterpolator(
@@ -334,24 +306,7 @@ class Terrain:
             weight = param['weight'] / (param['base_freq'])  #scale weight by base_freq to keep the same physical influence regardless of the frequency
             heights = heights * (1 - weight) + noise * weight  #blend rather than pure multiplication to preserve some of the base structure
         
-        # ---- Slope-based erosion feedback at fine scale (Item 4) ----
-        # Gradient is computed in world-space coordinates [0, 1] so slope is
-        # dh/d_world — invariant to zoom level and output resolution.
-        # At any zoom, the same physical slope produces the same mask value.
-        #grad_x, grad_y = np.gradient(heights, x, y)
-        #slope = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        #erosion_mask = np.exp(-slope * self.erosion_params.get('slope_feedback_strength', 5.0))
-        #heights *= erosion_mask
 
-
-        wp = self.world_params
-        #cell_size_x, cell_size_y = self.get_cell_size(lim, shape)
-        #base_cell = wp['max_size'] / self.base_params['size']
-        #adaptive_cutoff = float(np.clip(
-        #    wp['fft_cutoff'] * base_cell / cell_size_x,
-        #    0.05, 0.45,
-        #))
-        #heights = fft_lowpass(heights, cutoff=adaptive_cutoff, rolloff=wp['fft_rolloff'])
 
         return heights
 

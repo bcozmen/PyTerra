@@ -19,11 +19,10 @@ base_params = {
 erosion_params = {
     'thermal_iterations': 50,
     'talus': 0.02,
-    'hydraulic_iterations_density': 1.0,
+    'hydraulic_iterations_density': 0.5,
     'erosion_rate': 0.03,
     'deposition_rate': 0.015,
     'evaporation': 0.015,
-    'slope_feedback_strength' : 0.0015
 }
 
 continent_params = {
